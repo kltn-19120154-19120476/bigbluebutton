@@ -13,7 +13,7 @@ function CloudUploader({ onSelectFiles }) {
         flexDirection: 'column',
       }}
     >
-      <h2>Or choose file from</h2>
+      <h2>Or choose files from</h2>
 
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 30,
