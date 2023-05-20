@@ -11,6 +11,9 @@ import { Random } from 'meteor/random';
 import Meetings from '/imports/api/meetings';
 import { isPresentationEnabled } from '/imports/ui/services/features';
 import { notify } from '/imports/ui/services/notification';
+import sha1 from 'js-sha1';
+import axios from 'axios';
+import AuthSingleton from '/imports/ui/services/auth';
 
 const CONVERSION_TIMEOUT = 300000;
 const TOKEN_TIMEOUT = 5000;
@@ -22,8 +25,7 @@ const futch = (url, opts = {}, onProgress) => new Promise((res, rej) => {
 
   xhr.open(opts.method || 'get', url);
 
-  Object.keys(opts.headers || {})
-    .forEach((k) => xhr.setRequestHeader(k, opts.headers[k]));
+  Object.keys(opts.headers || {}).forEach((k) => xhr.setRequestHeader(k, opts.headers[k]));
 
   xhr.onload = (e) => {
     if (e.target.status !== 200) {
@@ -39,22 +41,13 @@ const futch = (url, opts = {}, onProgress) => new Promise((res, rej) => {
   xhr.send(opts.body);
 });
 
-const getPresentations = () => Presentations
-  .find({
-    'conversion.error': false,
-  })
+const getPresentations = () => Presentations.find({
+  'conversion.error': false,
+})
   .fetch()
   .map((presentation) => {
     const {
-      conversion,
-      current,
-      downloadable,
-      removable,
-      renderedInToast,
-      temporaryPresentationId,
-      id,
-      name,
-      exportation,
+      conversion, current, downloadable, removable, renderedInToast, temporaryPresentationId, id, name, exportation,
     } = presentation;
 
     const uploadTimestamp = id.split('-').pop();
@@ -78,11 +71,7 @@ const dispatchTogglePresentationDownloadable = (presentation, newState) => {
   makeCall('setPresentationDownloadable', presentation.id, newState);
 };
 
-const observePresentationConversion = (
-  meetingId,
-  temporaryPresentationId,
-  onConversion,
-) => new Promise((resolve) => {
+const observePresentationConversion = (meetingId, temporaryPresentationId, onConversion) => new Promise((resolve) => {
   // The token is placed as an id before the original one is generated
   // in the back-end;
   const tokenId = PresentationUploadToken.findOne({ temporaryPresentationId })?.authzToken;
@@ -107,11 +96,13 @@ const observePresentationConversion = (
       added: (doc) => {
         if (doc.temporaryPresentationId !== temporaryPresentationId && doc.id !== tokenId) return;
 
-        if (doc.conversion.status === 'FILE_TOO_LARGE' || doc.conversion.status === 'UNSUPPORTED_DOCUMENT'
-          || doc.conversion.status === 'CONVERSION_TIMEOUT' || doc.conversion.status === 'IVALID_MIME_TYPE') {
-          Presentations.update(
-            { id: tokenId }, { $set: { temporaryPresentationId, renderedInToast: false } },
-          );
+        if (
+          doc.conversion.status === 'FILE_TOO_LARGE'
+            || doc.conversion.status === 'UNSUPPORTED_DOCUMENT'
+            || doc.conversion.status === 'CONVERSION_TIMEOUT'
+            || doc.conversion.status === 'IVALID_MIME_TYPE'
+        ) {
+          Presentations.update({ id: tokenId }, { $set: { temporaryPresentationId, renderedInToast: false } });
           onConversion(doc.conversion);
           c.stop();
           clearTimeout(conversionTimeout);
@@ -136,12 +127,7 @@ const observePresentationConversion = (
   });
 });
 
-const requestPresentationUploadToken = (
-  temporaryPresentationId,
-  podId,
-  meetingId,
-  filename,
-) => new Promise((resolve, reject) => {
+const requestPresentationUploadToken = (temporaryPresentationId, podId, meetingId, filename) => new Promise((resolve, reject) => {
   makeCall('requestPresentationUploadToken', podId, filename, temporaryPresentationId);
 
   let computation = null;
@@ -175,16 +161,7 @@ const requestPresentationUploadToken = (
   });
 });
 
-const uploadAndConvertPresentation = (
-  file,
-  downloadable,
-  podId,
-  meetingId,
-  endpoint,
-  onUpload,
-  onProgress,
-  onConversion,
-) => {
+const uploadAndConvertPresentation = (file, downloadable, podId, meetingId, endpoint, onUpload, onProgress, onConversion) => {
   const temporaryPresentationId = _.uniqueId(Random.id(20));
 
   const data = new FormData();
@@ -205,75 +182,81 @@ const uploadAndConvertPresentation = (
 
   // If the presentation is from sharedNotes I don't want to
   // insert another one, I just need to update it.
-  UploadingPresentations.upsert({
-    filename: file.name,
-    lastModifiedUploader: false,
-  }, {
-    $set: {
-      temporaryPresentationId,
-      progress: 0,
+  UploadingPresentations.upsert(
+    {
       filename: file.name,
-      lastModifiedUploader: true,
-      upload: {
-        done: false,
-        error: false,
-      },
-      uploadTimestamp: new Date(),
+      lastModifiedUploader: false,
     },
-  });
-
-  return requestPresentationUploadToken(temporaryPresentationId, podId, meetingId, file.name)
-    .then((token) => {
-      makeCall('setUsedToken', token);
-      UploadingPresentations.upsert({
+    {
+      $set: {
         temporaryPresentationId,
-      }, {
-        $set: {
-          id: token,
+        progress: 0,
+        filename: file.name,
+        lastModifiedUploader: true,
+        upload: {
+          done: false,
+          error: false,
         },
-      });
-      return futch(endpoint.replace('upload', `${token}/upload`), opts, (e) => {
-        onProgress(e);
-        const pr = (e.loaded / e.total) * 100;
-        if (pr !== 100) {
-          UploadingPresentations.upsert({ temporaryPresentationId }, { $set: { progress: pr } });
-        } else {
-          UploadingPresentations.upsert({ temporaryPresentationId }, {
+        uploadTimestamp: new Date(),
+      },
+    },
+  );
+
+  return (
+    requestPresentationUploadToken(temporaryPresentationId, podId, meetingId, file.name)
+      .then((token) => {
+        makeCall('setUsedToken', token);
+        UploadingPresentations.upsert(
+          {
+            temporaryPresentationId,
+          },
+          {
             $set: {
-              progress: pr,
-              upload: {
-                done: true,
-                error: false,
-              },
+              id: token,
             },
-          });
-        }
-      });
-    })
-    .then(() => observePresentationConversion(meetingId, temporaryPresentationId, onConversion))
-    // Trap the error so we can have parallel upload
-    .catch((error) => {
-      logger.debug({
-        logCode: 'presentation_uploader_service',
-        extraInfo: {
-          error,
-        },
-      }, 'Generic presentation upload exception catcher');
-      observePresentationConversion(meetingId, temporaryPresentationId, onConversion);
-      onUpload({ error: true, done: true, status: error.code });
-      return Promise.resolve();
-    });
+          },
+        );
+        return futch(endpoint.replace('upload', `${token}/upload`), opts, (e) => {
+          onProgress(e);
+          const pr = (e.loaded / e.total) * 100;
+          if (pr !== 100) {
+            UploadingPresentations.upsert({ temporaryPresentationId }, { $set: { progress: pr } });
+          } else {
+            UploadingPresentations.upsert(
+              { temporaryPresentationId },
+              {
+                $set: {
+                  progress: pr,
+                  upload: {
+                    done: true,
+                    error: false,
+                  },
+                },
+              },
+            );
+          }
+        });
+      })
+      .then(() => observePresentationConversion(meetingId, temporaryPresentationId, onConversion))
+      // Trap the error so we can have parallel upload
+      .catch((error) => {
+        logger.debug(
+          {
+            logCode: 'presentation_uploader_service',
+            extraInfo: {
+              error,
+            },
+          },
+          'Generic presentation upload exception catcher',
+        );
+        observePresentationConversion(meetingId, temporaryPresentationId, onConversion);
+        onUpload({ error: true, done: true, status: error.code });
+        return Promise.resolve();
+      })
+  );
 };
 
-const uploadAndConvertPresentations = (
-  presentationsToUpload,
-  meetingId,
-  podId,
-  uploadEndpoint,
-) => Promise.all(presentationsToUpload.map((p) => uploadAndConvertPresentation(
-  p.file, p.isDownloadable, podId, meetingId, uploadEndpoint,
-  p.onUpload, p.onProgress, p.onConversion,
-)));
+const uploadAndConvertPresentations = (presentationsToUpload, meetingId, podId, uploadEndpoint) => Promise.all(presentationsToUpload.map((p) => uploadAndConvertPresentation(p.file, p.isDownloadable, podId, meetingId, uploadEndpoint, p.onUpload, p.onProgress, p.onConversion)));
 
 const setPresentation = (presentationId, podId) => {
   makeCall('setPresentation', presentationId, podId);
@@ -285,10 +268,7 @@ const removePresentation = (presentationId, podId) => {
   makeCall('removePresentation', presentationId, podId);
 };
 
-const removePresentations = (
-  presentationsToRemove,
-  podId,
-) => Promise.all(presentationsToRemove.map((p) => removePresentation(p.id, podId)));
+const removePresentations = (presentationsToRemove, podId) => Promise.all(presentationsToRemove.map((p) => removePresentation(p.id, podId)));
 
 const persistPresentationChanges = (oldState, newState, uploadEndpoint, podId) => {
   const presentationsToUpload = newState.filter((p) => !p.upload.done);
@@ -330,9 +310,7 @@ const persistPresentationChanges = (oldState, newState, uploadEndpoint, podId) =
     .then(removePresentations.bind(null, presentationsToRemove, podId));
 };
 
-const handleSavePresentation = (
-  presentations = [], isFromPresentationUploaderInterface = true, newPres = {},
-) => {
+const handleSavePresentation = (presentations = [], isFromPresentationUploaderInterface = true, newPres = {}) => {
   if (!isPresentationEnabled()) {
     return null;
   }
@@ -350,12 +328,7 @@ const handleSavePresentation = (
     newPres.isCurrent = true;
     presentations.push(newPres);
   }
-  return persistPresentationChanges(
-    currentPresentations,
-    presentations,
-    PRESENTATION_CONFIG.uploadEndpoint,
-    'DEFAULT_PRESENTATION_POD',
-  );
+  return persistPresentationChanges(currentPresentations, presentations, PRESENTATION_CONFIG.uploadEndpoint, 'DEFAULT_PRESENTATION_POD');
 };
 
 const getExternalUploadData = () => {
@@ -384,7 +357,7 @@ const exportPresentationToChat = (presentationId, observer) => {
     const cursor = Presentations.find({ id: presentationId });
 
     const checkStatus = (exportation) => {
-      const shouldStop = lastStatus.status === 'RUNNING' && exportation.status === 'EXPORTED';
+      const shouldStop = ['RUNNING', 'PROCESSING'].includes(lastStatus.status) && exportation.status === 'EXPORTED';
 
       if (shouldStop) {
         observer(exportation, true);
@@ -415,11 +388,7 @@ function handleFiledrop(files, files2, that, intl, intlMessages) {
     const { toUploadCount } = that.state;
     const validMimes = fileValidMimeTypes.map((fileValid) => fileValid.mime);
     const validExtentions = fileValidMimeTypes.map((fileValid) => fileValid.extension);
-    const [accepted, rejected] = _.partition(
-      files.concat(files2), (f) => (
-        validMimes.includes(f.type) || validExtentions.includes(`.${f.name.split('.').pop()}`)
-      ),
-    );
+    const [accepted, rejected] = _.partition(files.concat(files2), (f) => validMimes.includes(f.type) || validExtentions.includes(`.${f.name.split('.').pop()}`));
 
     const presentationsToUpload = accepted.map((file) => {
       const id = _.uniqueId(file.name);
@@ -461,22 +430,50 @@ function handleFiledrop(files, files2, that, intl, intlMessages) {
       };
     });
 
-    that.setState(({ presentations }) => ({
-      presentations: presentations.concat(presentationsToUpload),
-      toUploadCount: (toUploadCount + presentationsToUpload.length),
-    }), () => {
-      // after the state is set (files have been dropped),
-      // make the first of the new presentations current
-      if (presentationsToUpload && presentationsToUpload.length) {
-        that.handleCurrentChange(presentationsToUpload[0].id);
-      }
-    });
+    that.setState(
+      ({ presentations }) => ({
+        presentations: presentations.concat(presentationsToUpload),
+        toUploadCount: toUploadCount + presentationsToUpload.length,
+      }),
+      () => {
+        // after the state is set (files have been dropped),
+        // make the first of the new presentations current
+        if (presentationsToUpload && presentationsToUpload.length) {
+          that.handleCurrentChange(presentationsToUpload[0].id);
+        }
+      },
+    );
 
     if (rejected.length > 0) {
       notify(intl.formatMessage(intlMessages.rejectedError), 'error');
     }
   }
 }
+
+const BBB_SECRET = 'KQW6Y5ATubGuJ1ywq5ldhFSMMureKhMd0If01RGJxM';
+
+const createChecksum = (apiCall, params, secret = BBB_SECRET) => {
+  const queryString = new URLSearchParams(params).toString();
+  return sha1(`${apiCall}${queryString}${secret}`);
+};
+
+export const insertDocument = async ({ files }) => {
+  const { meetingID } = AuthSingleton;
+  const params = {
+    meetingID,
+    checksum: createChecksum('insertDocument', { meetingID }),
+  };
+
+  const filesXML = files.map((f) => `<module name="presentation"><document url="${f.uploadUrl}" filename="${f.name}" downloadable="true" /></module>`).join('');
+
+  const res = await axios.post(`/bigbluebutton/api/insertDocument?${new URLSearchParams(params)}`, `<?xml version="1.0" encoding="UTF-8"?><modules>${filesXML}</modules>`, {
+    headers: {
+      'Content-Type': 'application/xml',
+    },
+  });
+
+  return res;
+};
 
 export default {
   handleSavePresentation,
@@ -489,4 +486,5 @@ export default {
   exportPresentationToChat,
   uploadAndConvertPresentation,
   handleFiledrop,
+  insertDocument,
 };
