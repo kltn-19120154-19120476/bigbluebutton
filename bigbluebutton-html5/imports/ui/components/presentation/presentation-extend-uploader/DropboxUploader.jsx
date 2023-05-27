@@ -17,7 +17,7 @@ const DropboxBtn = ({ openDropbox, isDropboxLoading }) => {
         cursor: 'pointer',
       }}
     >
-      <img src={`${ICONS_PATH}/dropbox.jpg`} alt="Google drive" width={100} height={100} style={{ objectFit: 'contain' }} />
+      <img src={`${ICONS_PATH}/dropbox.jpg`} alt="Dropbox" width={100} height={100} style={{ objectFit: 'contain' }} />
     </div>
   );
 };
