@@ -883,7 +883,7 @@ private:
     includeChat: true
   app:
     host: 127.0.0.1,
-    serverHost: https://bbb26.com #docker-dev server host
+    serverHost: https://bigbluebuttonapp.software #replace when use docker-dev: https://bbb26.com 
     localesUrl: /locale-list
     pencilChunkLength: 100
     loadSlidesFromHttpAlways: false
