@@ -3,8 +3,12 @@ import React, { useRef, useState } from 'react';
 import useDrivePicker from 'react-google-drive-picker';
 import { toast } from 'react-toastify';
 import Icon from '/imports/ui/components/common/icon/component';
+import { Meteor } from 'meteor/meteor';
 
 function GoogleDriveUploader({ onSelectFiles }) {
+  const GOOGLE_CLIENT_ID = Meteor.settings.public.app.googleClientID;
+  const GOOGLE_DEV_KEY = Meteor.settings.public.app.googleDevKey;
+
   const [openPicker, authResponse] = useDrivePicker({ setOwnedByMe: true });
   const [loading, setLoading] = useState(false);
   const BASE_NAME = Meteor.settings.public.app.basename;
@@ -14,8 +18,8 @@ function GoogleDriveUploader({ onSelectFiles }) {
   const handleOpenPicker = () => {
     openPicker({
       customScopes: ['https://www.googleapis.com/auth/drive.readonly'],
-      clientId: '753430601932-73fsb3o0oapabrf88j6978glgc0nqhh4.apps.googleusercontent.com',
-      developerKey: 'AIzaSyA_Zb0roinIj-ITlgvAFJWF440HCPTnjeQ',
+      clientId: GOOGLE_CLIENT_ID,
+      developerKey: GOOGLE_DEV_KEY,
       viewId: 'DOCS',
       token: authResponse?.access_token || '',
       supportDrives: true,
@@ -44,9 +48,13 @@ function GoogleDriveUploader({ onSelectFiles }) {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 {choosenFiles.map((file) => (
-                  <div style={{
-                    padding: '5px 0', display: 'flex', alignItems: 'center', gap: 10,
-                  }}
+                  <div
+                    style={{
+                      padding: '5px 0',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                    }}
                   >
                     <Icon iconName="file" />
                     <span>
@@ -62,8 +70,9 @@ function GoogleDriveUploader({ onSelectFiles }) {
               autoClose: false,
             },
           );
-          await onSelectFiles(choosenFiles.filter((file) => file.isShared));
-          setTimeout(() => toast.dismiss(toastId.current), choosenFiles.length * 3000);
+          const res = await onSelectFiles(choosenFiles);
+          toast.info(res?.message, { autoClose: 3000 });
+          toast.dismiss(toastId.current);
         }
       },
     });

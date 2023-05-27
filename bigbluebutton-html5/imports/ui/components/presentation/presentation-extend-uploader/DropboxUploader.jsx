@@ -3,6 +3,7 @@ import { toast } from 'react-toastify';
 import Icon from '/imports/ui/components/common/icon/component';
 import { canOpenDropbox } from 'react-cloud-chooser';
 import { CircularProgress } from '@material-ui/core';
+import { Meteor } from 'meteor/meteor';
 
 const DropboxBtn = ({ openDropbox, isDropboxLoading }) => {
   const BASE_NAME = Meteor.settings.public.app.basename;
@@ -24,6 +25,8 @@ const DropboxBtn = ({ openDropbox, isDropboxLoading }) => {
 const DropboxOpenBtn = canOpenDropbox(DropboxBtn);
 
 const DropboxUploader = ({ onSelectFiles }) => {
+  const DROPBOX_APP_KEY = Meteor.settings.public.app.dropboxAppKey;
+
   const toastId = useRef(null);
   const handleChooseFiles = async (files) => {
     const choosenFiles = files.map((file) => ({ uploadUrl: file.link.replace('?dl=0', '?dl=1'), name: file.name }));
@@ -35,9 +38,13 @@ const DropboxUploader = ({ onSelectFiles }) => {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           {choosenFiles.map((file) => (
-            <div style={{
-              padding: '5px 0', display: 'flex', alignItems: 'center', gap: 10,
-            }}
+            <div
+              style={{
+                padding: '5px 0',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+              }}
             >
               <Icon iconName="file" />
               <span>{file.name}</span>
@@ -49,11 +56,12 @@ const DropboxUploader = ({ onSelectFiles }) => {
         autoClose: false,
       },
     );
-    await onSelectFiles(choosenFiles);
-    setTimeout(() => toast.dismiss(toastId.current), choosenFiles.length * 3000);
+    const res = await onSelectFiles(choosenFiles);
+    toast.info(res?.message, { autoClose: 3000 });
+    toast.dismiss(toastId.current);
   };
 
-  return <DropboxOpenBtn appKey="pxonfb5c72b1tr7" success={handleChooseFiles} extensions=".pdf,.docs,.doc,.ppt,.pptx" multiselect />;
+  return <DropboxOpenBtn appKey={DROPBOX_APP_KEY} success={handleChooseFiles} extensions=".pdf,.docs,.doc,.ppt,.pptx" multiselect />;
 };
 
 export default DropboxUploader;

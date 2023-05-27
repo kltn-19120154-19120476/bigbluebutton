@@ -1,35 +1,37 @@
-import axios from 'axios';
-import { Meteor } from 'meteor/meteor';
-import createCaptions from '/imports/api/captions/server/modifiers/createCaptions';
-import Logger from '/imports/startup/server/logger';
+import axios from "axios";
+import { Meteor } from "meteor/meteor";
+import createCaptions from "/imports/api/captions/server/modifiers/createCaptions";
+import Logger from "/imports/startup/server/logger";
 
 const CAPTIONS_CONFIG = Meteor.settings.public.captions;
 const BASENAME = Meteor.settings.public.app.basename;
-const HOST = Meteor.settings.private.app.host;
-const LOCALES = Meteor.settings.private.app.localesUrl;
+const HOST = Meteor.settings.public.app.host;
+const LOCALES = Meteor.settings.public.app.localesUrl;
 const LOCALES_URL = `http://${HOST}:${process.env.PORT}${BASENAME}${LOCALES}`;
 
 const init = (meetingId) => {
   axios({
-    method: 'get',
+    method: "get",
     url: LOCALES_URL,
-    responseType: 'json',
-  }).then(async (response) => {
-    const { status } = response;
-    if (status !== 200) return;
+    responseType: "json",
+  })
+    .then(async (response) => {
+      const { status } = response;
+      if (status !== 200) return;
 
-    const locales = response.data;
-    await Promise.all(locales.map(async (locale) => {
-      const caption = await createCaptions(meetingId, locale.locale, locale.name);
-      return caption;
-    }));
-  }).catch((error) => Logger.error(`Could not create captions for ${meetingId}: ${error}`));
+      const locales = response.data;
+      await Promise.all(
+        locales.map(async (locale) => {
+          const caption = await createCaptions(meetingId, locale.locale, locale.name);
+          return caption;
+        })
+      );
+    })
+    .catch((error) => Logger.error(`Could not create captions for ${meetingId}: ${error}`));
 };
 
 const initCaptions = (meetingId) => {
   if (CAPTIONS_CONFIG.enabled) init(meetingId);
 };
 
-export {
-  initCaptions,
-};
+export { initCaptions };

@@ -16,8 +16,9 @@ import Styled from './styles';
 import Settings from '/imports/ui/services/settings';
 import Radio from '/imports/ui/components/common/radio/component';
 import { isPresentationEnabled } from '/imports/ui/services/features';
-import { insertDocument } from './service';
 import CloudUploader from '../presentation-extend-uploader/component';
+import { makeCall } from '/imports/ui/services/api';
+import AuthSingleton from '/imports/ui/services/auth';
 
 const { isMobile } = deviceInfo;
 const propTypes = {
@@ -1130,9 +1131,12 @@ class PresentationUploader extends Component {
               {isMobile ? this.renderPicDropzone() : null}
               {this.renderDropzone()}
               {this.renderExternalUpload()}
-              <CloudUploader onSelectFiles={async (files) => {
-                await insertDocument({ files });
-              }}
+              <CloudUploader
+                onSelectFiles={async (files) => {
+                  const { meetingID } = AuthSingleton;
+                  const res = await makeCall('insertDocumentWithURL', { files, meetingID });
+                  return res;
+                }}
               />
             </Styled.ModalInner>
           </Styled.UploaderModal>

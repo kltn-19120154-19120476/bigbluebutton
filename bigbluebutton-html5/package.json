@@ -94,6 +94,7 @@
     "wasm-check": "^2.0.3",
     "webrtc-adapter": "^8.1.1",
     "winston": "^3.7.2",
+    "xml-js": "^1.6.11",
     "yaml": "^2.2.2"
   },
   "devDependencies": {

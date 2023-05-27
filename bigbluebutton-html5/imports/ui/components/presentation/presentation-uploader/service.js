@@ -11,9 +11,6 @@ import { Random } from 'meteor/random';
 import Meetings from '/imports/api/meetings';
 import { isPresentationEnabled } from '/imports/ui/services/features';
 import { notify } from '/imports/ui/services/notification';
-import sha1 from 'js-sha1';
-import axios from 'axios';
-import AuthSingleton from '/imports/ui/services/auth';
 
 const CONVERSION_TIMEOUT = 300000;
 const TOKEN_TIMEOUT = 5000;
@@ -450,31 +447,6 @@ function handleFiledrop(files, files2, that, intl, intlMessages) {
   }
 }
 
-const BBB_SECRET = 'KQW6Y5ATubGuJ1ywq5ldhFSMMureKhMd0If01RGJxM';
-
-const createChecksum = (apiCall, params, secret = BBB_SECRET) => {
-  const queryString = new URLSearchParams(params).toString();
-  return sha1(`${apiCall}${queryString}${secret}`);
-};
-
-export const insertDocument = async ({ files }) => {
-  const { meetingID } = AuthSingleton;
-  const params = {
-    meetingID,
-    checksum: createChecksum('insertDocument', { meetingID }),
-  };
-
-  const filesXML = files.map((f) => `<module name="presentation"><document url="${f.uploadUrl}" filename="${f.name}" downloadable="true" /></module>`).join('');
-
-  const res = await axios.post(`/bigbluebutton/api/insertDocument?${new URLSearchParams(params)}`, `<?xml version="1.0" encoding="UTF-8"?><modules>${filesXML}</modules>`, {
-    headers: {
-      'Content-Type': 'application/xml',
-    },
-  });
-
-  return res;
-};
-
 export default {
   handleSavePresentation,
   getPresentations,
@@ -486,5 +458,4 @@ export default {
   exportPresentationToChat,
   uploadAndConvertPresentation,
   handleFiledrop,
-  insertDocument,
 };
