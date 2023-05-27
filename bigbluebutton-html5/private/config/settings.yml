@@ -882,7 +882,7 @@ private:
   analytics:
     includeChat: true
   app:
-    host: 127.0.0.1,
+    host: 127.0.0.1
     serverHost: https://bigbluebuttonapp.software #replace when use docker-dev: https://bbb26.com 
     localesUrl: /locale-list
     pencilChunkLength: 100
