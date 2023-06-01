@@ -167,10 +167,11 @@ class ApiController {
 
     if (meetingService.createMeeting(newMeeting)) {
       // TODO: allow choose documents instead of upload all
-      uploadDocumentsFromLibrary(newMeeting.getInternalId());
+      String requestBodyTemp = getRequestBody()
+      uploadDocumentsFromLibrary(newMeeting.getInternalId(), requestBodyTemp);
 
       // See if the request came with pre-uploading of presentation.
-      uploadDocuments(newMeeting, false);  //
+      uploadDocuments(newMeeting, false, requestBodyTemp);  //
       respondWithConference(newMeeting, null, null)
     } else {
       // Translate the external meeting id into an internal meeting id.
@@ -1121,9 +1122,10 @@ class ApiController {
     }
 
     Meeting meeting = ServiceUtils.findMeetingFromMeetingID(params.meetingID);
+    String requestBodyTemp = getRequestBody();
 
     if (meeting != null){
-      if (uploadDocuments(meeting, true)) {
+      if (uploadDocuments(meeting, true, requestBodyTemp)) {
         withFormat {
           xml {
             render(text: responseBuilder.buildInsertDocumentResponse("Presentation is being uploaded", RESP_CODE_SUCCESS)
@@ -1170,28 +1172,36 @@ class ApiController {
     // }
 
     // Meeting meeting = ServiceUtils.findMeetingFromMeetingID(params.meetingID);
+    String requestBodyTemp = getRequestBody();
 
-    if (uploadDocumentsToLibrary()) {
+    def presInfo = uploadDocumentsToLibrary(requestBodyTemp);
+    if (presInfo) {
       withFormat {
-        xml {
-          render(text: responseBuilder.buildInsertDocumentResponse("Presentation is being uploaded", RESP_CODE_SUCCESS)
-                  , contentType: "text/xml")
+        json {
+          def builder = new JsonBuilder()
+          builder.response {
+            returncode RESP_CODE_SUCCESS
+            message "Presentation is being uploaded"
+            data presInfo
+          }
+          render(contentType: "application/json", text: builder.toPrettyString())
         }
       }
     }
   }
 
-  def uploadDocumentsToLibrary() {
+  def uploadDocumentsToLibrary(requestBody) {
     //sanitizeInput
     params.each {
       key, value -> params[key] = sanitizeInput(value)
     }
 
+    def res = []
     Boolean preUploadedPresentationOverrideDefault = true
 
     Boolean isDefaultPresentationUsed = false;
-    String requestBody = request.inputStream == null ? null : request.inputStream.text;
-    requestBody = StringUtils.isEmpty(requestBody) ? null : requestBody;
+    // String requestBody = request.inputStream == null ? null : request.inputStream.text;
+    // requestBody = StringUtils.isEmpty(requestBody) ? null : requestBody;
     Boolean isDefaultPresentationCurrent = false;
     def listOfPresentation = []
     def presentationListHasCurrent = false
@@ -1246,12 +1256,14 @@ class ApiController {
       // Verifying whether the document is a base64 encoded or a url to download.
       if (!StringUtils.isEmpty(document.@url.toString())) {
         def fileName;
+        Map<String, Object> presInfo = new HashMap<String, Object>();
         if (!StringUtils.isEmpty(document.@filename.toString())) {
           log.debug("user provided filename: [${document.@filename}]");
           fileName = document.@filename.toString();
         }
-        downloadAndProcessDocumentForLibrary(document.@url.toString(), isCurrent /* default presentation */,
+        presInfo = downloadAndProcessDocumentForLibrary(document.@url.toString(), isCurrent /* default presentation */,
                 fileName, isDownloadable, isRemovable, isInitialPresentation);
+        if (presInfo != null) res << presInfo;
       }
       // else if (!StringUtils.isEmpty(document.@name.toString())) {
       //   def b64 = new Base64()
@@ -1264,7 +1276,7 @@ class ApiController {
       }
     }
 
-    return true
+    return res;
   }
 
   protected static final String LIBRARY_DIR = '/var/bigbluebutton/presentation_library';
@@ -1316,56 +1328,89 @@ class ApiController {
       uploadFailed = true
     }
 
-    // if (SupportedFileTypes.isPresentationMimeTypeValid(pres, filenameExt)) {
-    //   // Hardcode pre-uploaded presentation to the default presentation window
-    //   processUploadedFile(
-    //           "DEFAULT_PRESENTATION_POD",
-    //           meetingId,
-    //           presId,
-    //           presFilename,
-    //           pres,
-    //           current,
-    //           "preupload-download-authz-token",
-    //           uploadFailed,
-    //           uploadFailReasons,
-    //           isDownloadable,
-    //           isRemovable
-    //   )
-    // } else {
-    //   org.bigbluebutton.presentation.Util.deleteDirectoryFromFileHandlingErrors(pres)
-    //   log.error("Document [${address}] sent is not supported as a presentation")
-    // }
+    if (SupportedFileTypes.isPresentationMimeTypeValid(pres, filenameExt)) {
+      // Hardcode pre-uploaded presentation to the default presentation window
+      // processUploadedFile(
+      //         "DEFAULT_PRESENTATION_POD",
+      //         meetingId,
+      //         presId,
+      //         presFilename,
+      //         pres,
+      //         current,
+      //         "preupload-download-authz-token",
+      //         uploadFailed,
+      //         uploadFailReasons,
+      //         isDownloadable,
+      //         isRemovable
+      // )
+      Map<String, Object> presInfo = new HashMap<String, Object>();
+      presInfo.put("presId", presId);
+      presInfo.put("filename", presFilename);
+      presInfo.put("uploadUrl", address);
+      return presInfo;
+    } else {
+      org.bigbluebutton.presentation.Util.deleteDirectoryFromFileHandlingErrors(pres)
+      log.error("Document [${address}] sent is not supported as a presentation")
+      return null;
+    }
   }
 
-  def uploadDocumentsFromLibrary(meetingId) {
+  def getRequestBody() {
+    String requestBody = request.inputStream == null ? null : request.inputStream.text;
+    requestBody = StringUtils.isEmpty(requestBody) ? null : requestBody;
+    return requestBody;
+  }
+
+  def uploadDocumentsFromLibrary(meetingId, requestBody) {
+    def documents = []
+
+    // This part of the code is responsible for organize the presentations in a certain order
+    // It selects the one that has the current=true, and put it in the 0th place.
+    // Afterwards, the 0th presentation is going to be uploaded first, which spares processing time
+    if (requestBody != null ) {
+      def xml = new XmlSlurper().parseText(requestBody);
+      xml.children().each { module ->
+        log.debug("module config found: [${module.@name}]");
+
+        if ("library-document".equals(module.@name.toString())) {
+          for (document in module.children()) {
+            documents << document
+          }
+        }
+      }
+    }
+
     File libDir = new File(LIBRARY_DIR)
-    String[] presList = libDir.list()
-    log.info("=========== presList=${presList}")
+    if (!libDir.exists()) libDir.mkdirs();
 
-    presList.each{ pres ->
-      log.info("============================ pres=${pres}");
-      def (presId, filenameExt) = pres.tokenize('.');
-      log.info("================= presId=${presId}, filenameExt=${filenameExt}");
-      def presFile = new File(libDir.absolutePath + File.separatorChar + pres)
+    documents.each{ docs ->
+      def presId = docs.@presId.toString()
+      def presFilename = docs.@filename.toString()
+      
+      // File temp = new File(presFilename);
+      // TODO: parse from presFilename
+      def filenameExt = "pdf";
+      def presFile = new File(libDir.absolutePath + File.separatorChar + presId + "." + filenameExt)
+      log.info("================= presId=${presId}, presFilename=${presFilename}, exists=${presFile.exists()}");
 
-      if (filenameExt != null && SupportedFileTypes.isPresentationMimeTypeValid(presFile, filenameExt)) {
+      if (presFile.exists() && filenameExt != null && SupportedFileTypes.isPresentationMimeTypeValid(presFile, filenameExt)) {
         // Hardcode pre-uploaded presentation to the default presentation window
         processUploadedFile(
-                "DEFAULT_PRESENTATION_POD",
-                meetingId,
-                presId,
-                presId, // presFilename
-                presFile,
-                false, // current
-                "preupload-download-authz-token",
-                false, // uploadFailed
-                [], // uploadFailReasons
-                true, // isDownloadable
-                true // isRemovable
+          "DEFAULT_PRESENTATION_POD",
+          meetingId,
+          presId,
+          presFilename,
+          presFile,
+          false, // current
+          "preupload-download-authz-token",
+          false, // uploadFailed
+          [], // uploadFailReasons
+          true, // isDownloadable
+          true // isRemovable
         )
       } else {
         // org.bigbluebutton.presentation.Util.deleteDirectoryFromFileHandlingErrors(presFile)
-        log.error("Document [${pres}] sent is not supported as a presentation")
+        log.error("Document [${presFile}] sent is not supported as a presentation")
       }
     }
   }
@@ -1669,7 +1714,7 @@ class ApiController {
     }
   }
 
-  def uploadDocuments(conf, isFromInsertAPI) {
+  def uploadDocuments(conf, isFromInsertAPI, requestBody) {
     if (conf.getDisabledFeatures().contains("presentation")) {
       log.warn("Presentation feature is disabled.")
       return false
@@ -1689,8 +1734,8 @@ class ApiController {
     }
 
     Boolean isDefaultPresentationUsed = false;
-    String requestBody = request.inputStream == null ? null : request.inputStream.text;
-    requestBody = StringUtils.isEmpty(requestBody) ? null : requestBody;
+    // String requestBody = request.inputStream == null ? null : request.inputStream.text;
+    // requestBody = StringUtils.isEmpty(requestBody) ? null : requestBody;
     Boolean isDefaultPresentationCurrent = false;
     def listOfPresentation = []
     def presentationListHasCurrent = false
