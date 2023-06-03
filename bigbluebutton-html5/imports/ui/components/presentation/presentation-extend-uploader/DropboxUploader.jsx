@@ -29,7 +29,7 @@ const DropboxUploader = ({ onSelectFiles }) => {
 
   const toastId = useRef(null);
   const handleChooseFiles = async (files) => {
-    const choosenFiles = files.map((file) => ({ uploadUrl: file.link.replace('?dl=0', '?dl=1'), name: file.name }));
+    const choosenFiles = files.map((file) => ({ url: file.link.replace('?dl=0', '?dl=1'), name: file.name }));
     toastId.current = toast.info(
       <div>
         <div style={{ display: 'flex', alignItems: 'center' }}>

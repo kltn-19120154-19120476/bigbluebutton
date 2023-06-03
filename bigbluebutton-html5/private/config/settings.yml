@@ -632,7 +632,7 @@ public:
     # Number of reconnection attempts of the signaling websocket, before
     # showing to the user there's an audio error.
     audioReconnectionAttempts: 3
-    sipjsHackViaWs: false
+    sipjsHackViaWs: true
     # sipjsAllowMdns: whether mDNS candidates should be allowed in local SDPs.
     # Default is false since FreeSWITCH doesn't resolve mDNS by default.
     sipjsAllowMdns: false
@@ -883,12 +883,11 @@ private:
     includeChat: true
   app:
     host: 127.0.0.1
-    serverHost: https://bigbluebuttonapp.software #replace when use docker-dev: https://bbb26.com 
+    proxyHost: https://bigbluebutton-proxy-wvvp7.ondigitalocean.app
     localesUrl: /locale-list
     pencilChunkLength: 100
     loadSlidesFromHttpAlways: false
     # Special configuration for personal app privacy settings
-    bbbSecret: KQW6Y5ATubGuJ1ywq5ldhFSMMureKhMd0If01RGJxM
     dropboxAppKey: pxonfb5c72b1tr7
     googleClientID: 753430601932-73fsb3o0oapabrf88j6978glgc0nqhh4.apps.googleusercontent.com
     googleDevKey: AIzaSyA_Zb0roinIj-ITlgvAFJWF440HCPTnjeQ

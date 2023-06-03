@@ -50,7 +50,6 @@
     "hark": "^1.2.3",
     "html-to-image": "^1.9.0",
     "immutability-helper": "~2.8.1",
-    "js-sha1": "^0.6.0",
     "langmap": "0.0.16",
     "lodash": "^4.17.21",
     "makeup-screenreader-trap": "0.0.5",
@@ -94,7 +93,6 @@
     "wasm-check": "^2.0.3",
     "webrtc-adapter": "^8.1.1",
     "winston": "^3.7.2",
-    "xml-js": "^1.6.11",
     "yaml": "^2.2.2"
   },
   "devDependencies": {
