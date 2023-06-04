@@ -19,12 +19,10 @@ const init = (meetingId) => {
     if (status !== 200) return;
 
     const locales = response.data;
-    await Promise.all(
-      locales.map(async (locale) => {
-        const caption = await createCaptions(meetingId, locale.locale, locale.name);
-        return caption;
-      })
-    );
+    await Promise.all(locales.map(async (locale) => {
+      const caption = await createCaptions(meetingId, locale.locale, locale.name);
+      return caption;
+    }));
   }).catch((error) => Logger.error(`Could not create captions for ${meetingId}: ${error}`));
 };
 
