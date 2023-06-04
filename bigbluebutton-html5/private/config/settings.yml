@@ -883,7 +883,8 @@ private:
     includeChat: true
   app:
     host: 127.0.0.1
-    proxyHost: https://bigbluebutton-proxy-wvvp7.ondigitalocean.app
+    serverHost: https://bigbluebuttonapp.software
+    bbbSecret: nPlFbEL7NU9iJ880sYq6PhkTbOZLTEJef1bCju5D2M
     localesUrl: /locale-list
     pencilChunkLength: 100
     loadSlidesFromHttpAlways: false
