@@ -1,10 +1,10 @@
 import React, { PureComponent } from 'react';
 import PropTypes from 'prop-types';
 import { defineMessages, injectIntl } from 'react-intl';
-import _ from 'lodash';
 import BBBMenu from '/imports/ui/components/common/menu/component';
 import Trigger from '/imports/ui/components/common/control-header/right/component';
 import Service from './service';
+import { uniqueId } from '/imports/utils/string-utils';
 
 const DEBOUNCE_TIMEOUT = 15000;
 const NOTES_CONFIG = Meteor.settings.public.notes;
@@ -50,6 +50,7 @@ class NotesDropdown extends PureComponent {
     const {
       intl,
       amIPresenter,
+      presentations,
     } = this.props;
 
     const { converterButtonDisabled } = this.state;
@@ -62,7 +63,7 @@ class NotesDropdown extends PureComponent {
     if (amIPresenter) {
       this.menuItems.push(
         {
-          key: _.uniqueId('notes-option-'),
+          key: uniqueId('notes-option-'),
           icon: uploadIcon,
           dataTest: 'moveNotesToWhiteboard',
           label: intl.formatMessage(intlMessages.convertAndUploadLabel),
@@ -70,7 +71,7 @@ class NotesDropdown extends PureComponent {
           onClick: () => {
             this.setConverterButtonDisabled(true);
             setTimeout(() => this.setConverterButtonDisabled(false), DEBOUNCE_TIMEOUT);
-            return Service.convertAndUpload();
+            return Service.convertAndUpload(presentations);
           },
         },
       );
@@ -79,7 +80,7 @@ class NotesDropdown extends PureComponent {
     if (amIPresenter && NOTES_IS_PINNABLE) {
       this.menuItems.push(
         {
-          key: _.uniqueId('notes-option-'),
+          key: uniqueId('notes-option-'),
           icon: pinIcon,
           dataTest: 'pinNotes',
           label: intl.formatMessage(intlMessages.pinNotes),
@@ -120,7 +121,7 @@ class NotesDropdown extends PureComponent {
             keepMounted: true,
             transitionDuration: 0,
             elevation: 3,
-            getContentAnchorEl: null,
+            getcontentanchorel: null,
             fullwidth: 'true',
             anchorOrigin: { vertical: 'bottom', horizontal: isRTL ? 'right' : 'left' },
             transformOrigin: { vertical: 'top', horizontal: isRTL ? 'right' : 'left' },

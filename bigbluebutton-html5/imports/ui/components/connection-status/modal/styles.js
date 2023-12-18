@@ -1,5 +1,5 @@
 import styled from 'styled-components';
-import Modal from '/imports/ui/components/common/modal/simple/component';
+import ModalSimple from '/imports/ui/components/common/modal/simple/component';
 import {
   colorOffWhite,
   colorGrayDark,
@@ -36,7 +36,7 @@ import {
   Tab, Tabs, TabList, TabPanel,
 } from 'react-tabs';
 
-const Item = styled.div`
+const Item = styled.li`
   display: flex;
   width: 100%;
   height: 4rem;
@@ -168,7 +168,7 @@ const CopyContainer = styled.div`
   padding: ${jumboPaddingY} 0 0;
 `;
 
-const ConnectionStatusModal = styled(Modal)`
+const ConnectionStatusModal = styled(ModalSimple)`
   padding: 1rem;
   height: 28rem;
 
@@ -320,6 +320,10 @@ const ConnectionTabPanel = styled(TabPanel)`
   &.is-selected {
     display: flex;
     flex-flow: column;
+  }
+
+  & ul {
+    padding: 0;
   }
 
   @media ${smallOnly} {

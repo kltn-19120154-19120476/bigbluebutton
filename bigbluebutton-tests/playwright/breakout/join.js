@@ -86,7 +86,7 @@ class Join extends Create {
     await this.modPage.waitAndClick(e.breakoutRoomsItem);
     await this.modPage.waitAndClick(e.breakoutOptionsMenu);
     await this.modPage.waitAndClick(e.openUpdateBreakoutUsersModal);
-    await this.modPage.dragDropSelector(e.userTest, e.breakoutBox1);
+    await this.modPage.dragDropSelector(e.attendeeNotAssigned, e.breakoutBox1);
     await this.modPage.hasText(e.breakoutBox1, /Attendee/);
     await this.modPage.waitAndClick(e.modalConfirmButton);
 
@@ -144,8 +144,11 @@ class Join extends Create {
 
   async exportBreakoutNotes() {
     const { sharedNotesEnabled } = getSettings();
-    test.fail(!sharedNotesEnabled, 'Shared notes is disabled');
 
+    if(!sharedNotesEnabled) {
+      await this.modPage.hasElement(e.chatButton);
+      return this.modPage.wasRemoved(e.sharedNotes);
+    }
     const breakoutUserPage = await this.joinRoom();
     await breakoutUserPage.hasElement(e.presentationTitle);
     await breakoutUserPage.waitAndClick(e.sharedNotes);
@@ -157,6 +160,10 @@ class Join extends Create {
 
     await this.modPage.waitAndClick(e.breakoutRoomsItem);
     await this.modPage.waitAndClick(e.breakoutOptionsMenu);
+    // close all notifications displayed before ending rooms
+    for (const closeButton of await this.modPage.getLocator(e.closeToastBtn).all()) {
+      await closeButton.click();
+    }
     await this.modPage.waitAndClick(e.endAllBreakouts);
 
     await this.modPage.hasElement(e.presentationUploadProgressToast);
@@ -164,7 +171,7 @@ class Join extends Create {
     const shareNotesPDF = await this.modPage.getLocatorByIndex(e.actionsItem, 1);
     await expect(shareNotesPDF).toHaveText(/Notes/, { timeout: 30000 });
     await expect(this.modPage.getLocatorByIndex(e.actionsItem, 2)).toHaveText("Upload/Manage presentations"); //This checks if no other content was exported.
-    await this.modPage.checkElementCount(e.actionsItem, 8);
+    await this.modPage.checkElementCount(e.actionsItem, 9);
     await shareNotesPDF.click();
 
     const wbBox = await this.modPage.getLocator(e.whiteboard);
@@ -175,7 +182,11 @@ class Join extends Create {
 
   async exportBreakoutWhiteboard() {
     const { sharedNotesEnabled } = getSettings();
-    test.fail(!sharedNotesEnabled, 'Shared notes is disabled');
+    
+    if(!sharedNotesEnabled) {
+      await this.modPage.hasElement(e.chatButton);
+      return this.modPage.wasRemoved(e.sharedNotes);
+    }
 
     const breakoutUserPage = await this.joinRoom();
     await breakoutUserPage.hasElement(e.presentationTitle);
@@ -196,6 +207,10 @@ class Join extends Create {
 
     await this.modPage.waitAndClick(e.breakoutRoomsItem);
     await this.modPage.waitAndClick(e.breakoutOptionsMenu);
+    // close all notifications displayed before ending rooms
+    for (const closeButton of await this.modPage.getLocator(e.closeToastBtn).all()) {
+      await closeButton.click();
+    }
     await this.modPage.waitAndClick(e.endAllBreakouts);
 
     await this.modPage.waitForSelector(e.presentationUploadProgressToast, ELEMENT_WAIT_LONGER_TIME);
@@ -203,15 +218,17 @@ class Join extends Create {
     const whiteboardPDF = await this.modPage.getLocatorByIndex(e.actionsItem, 1);
     await expect(whiteboardPDF).toHaveText(/Whiteboard/, { timeout: 30000 });
     await expect(this.modPage.getLocatorByIndex(e.actionsItem, 2)).toHaveText("Upload/Manage presentations"); //This checks if no other content was exported.
-    await this.modPage.checkElementCount(e.actionsItem, 8);
+    await this.modPage.checkElementCount(e.actionsItem, 9);
     await whiteboardPDF.click();
     await this.modPage.waitAndClick('i[type="info"]');
     await this.modPage.waitAndClick(e.currentPresentationToast);
 
-    const wbBox = await this.modPage.getLocator(e.whiteboard);
-    await expect(wbBox).toHaveScreenshot('capture-breakout-whiteboard.png', {
-      maxDiffPixels: 1000,
-    });
+    //! below lines commented due to https://github.com/bigbluebutton/bigbluebutton/issues/18233
+    //! once it's fixed, re-add lines to the code
+    // const wbBox = await this.modPage.getLocator(e.whiteboard);
+    // await expect(wbBox).toHaveScreenshot('capture-breakout-whiteboard.png', {
+    //   maxDiffPixels: 1000,
+    // });
   }
 
   async userCanChooseRoom() {

@@ -1,11 +1,15 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import browserInfo from '/imports/utils/browserInfo';
 import VideoService from '/imports/ui/components/video-provider/service';
 import FullscreenService from '/imports/ui/components/common/fullscreen-button/service';
 import BBBMenu from '/imports/ui/components/common/menu/component';
 import PropTypes from 'prop-types';
+import { UserCameraDropdownItemType } from 'bigbluebutton-html-plugin-sdk/dist/cjs/extensible-areas/user-camera-dropdown-item/enums';
 import Styled from './styles';
+import Auth from '/imports/ui/services/auth';
+import { PluginsContext } from '/imports/ui/components/components-data/plugin-context/context';
+import { notify } from '/imports/ui/services/notification';
 
 const intlMessages = defineMessages({
   focusLabel: {
@@ -26,17 +30,29 @@ const intlMessages = defineMessages({
   unpinLabel: {
     id: 'app.videoDock.webcamUnpinLabel',
   },
+  disableLabel: {
+    id: 'app.videoDock.webcamDisableLabel',
+  },
+  enableLabel: {
+    id: 'app.videoDock.webcamEnableLabel',
+  },
   pinDesc: {
     id: 'app.videoDock.webcamPinDesc',
   },
   unpinDesc: {
     id: 'app.videoDock.webcamUnpinDesc',
   },
-  mirrorLabel: {
-    id: 'app.videoDock.webcamMirrorLabel',
+  enableMirrorLabel: {
+    id: 'app.videoDock.webcamEnableMirrorLabel',
   },
-  mirrorDesc: {
-    id: 'app.videoDock.webcamMirrorDesc',
+  enableMirrorDesc: {
+    id: 'app.videoDock.webcamEnableMirrorDesc',
+  },
+  disableMirrorLabel: {
+    id: 'app.videoDock.webcamDisableMirrorLabel',
+  },
+  disableMirrorDesc: {
+    id: 'app.videoDock.webcamDisableMirrorDesc',
   },
   fullscreenLabel: {
     id: 'app.videoDock.webcamFullscreenLabel',
@@ -46,13 +62,29 @@ const intlMessages = defineMessages({
     id: 'app.videoDock.webcamSqueezedButtonLabel',
     description: 'User selected webcam squeezed options',
   },
+  disableDesc: {
+    id: 'app.videoDock.webcamDisableDesc',
+  },
+  disableWarning: {
+    id: 'app.videoDock.webcamDisableWarning',
+  },
 });
 
 const UserActions = (props) => {
   const {
     name, cameraId, numOfStreams, onHandleVideoFocus, user, focused, onHandleMirror,
-    isVideoSqueezed, videoContainer, isRTL,
+    isVideoSqueezed, videoContainer, isRTL, isStream, isSelfViewDisabled, isMirrored,
+    amIModerator,
   } = props;
+
+  const { pluginsExtensibleAreasAggregatedState } = useContext(PluginsContext);
+
+  let userCameraDropdownItems = [];
+  if (pluginsExtensibleAreasAggregatedState.userCameraDropdownItems) {
+    userCameraDropdownItems = [
+      ...pluginsExtensibleAreasAggregatedState.userCameraDropdownItems,
+    ];
+  }
 
   const intl = useIntl();
   const enableVideoMenu = Meteor.settings.public.kurento.enableVideoMenu || false;
@@ -63,37 +95,63 @@ const UserActions = (props) => {
     const userId = user?.userId;
     const isPinnedIntlKey = !pinned ? 'pin' : 'unpin';
     const isFocusedIntlKey = !focused ? 'focus' : 'unfocus';
+    const isMirroredIntlKey = !isMirrored ? 'enableMirror' : 'disableMirror';
+    const disabledCams = Session.get('disabledCams') || [];
+    const isCameraDisabled = disabledCams && disabledCams?.includes(cameraId);
+    const enableSelfCamIntlKey = !isCameraDisabled ? 'disable' : 'enable';
 
     const menuItems = [];
+
+    const toggleDisableCam = () => {
+      if (!isCameraDisabled) {
+        Session.set('disabledCams', [...disabledCams, cameraId]);
+        notify(intl.formatMessage(intlMessages.disableWarning), 'info', 'warning');
+      } else {
+        Session.set('disabledCams', disabledCams.filter((cId) => cId !== cameraId));
+      }
+    };
 
     if (isVideoSqueezed) {
       menuItems.push({
         key: `${cameraId}-name`,
         label: name,
         description: name,
-        onClick: () => {},
+        onClick: () => { },
         disabled: true,
       });
 
-      menuItems.push(
-        {
-          key: `${cameraId}-fullscreen`,
-          label: intl.formatMessage(intlMessages.fullscreenLabel),
-          description: intl.formatMessage(intlMessages.fullscreenLabel),
-          onClick: () => FullscreenService.toggleFullScreen(videoContainer.current),
-        },
-      );
+      if (isStream) {
+        menuItems.push(
+          {
+            key: `${cameraId}-fullscreen`,
+            label: intl.formatMessage(intlMessages.fullscreenLabel),
+            description: intl.formatMessage(intlMessages.fullscreenLabel),
+            onClick: () => FullscreenService.toggleFullScreen(videoContainer.current),
+          },
+        );
+      }
+    }
+    if (userId === Auth.userID && isStream && !isSelfViewDisabled) {
+      menuItems.push({
+        key: `${cameraId}-disable`,
+        label: intl.formatMessage(intlMessages[`${enableSelfCamIntlKey}Label`]),
+        description: intl.formatMessage(intlMessages[`${enableSelfCamIntlKey}Label`]),
+        onClick: () => toggleDisableCam(cameraId),
+        dataTest: 'selfViewDisableBtn',
+      });
     }
 
-    menuItems.push({
-      key: `${cameraId}-mirror`,
-      label: intl.formatMessage(intlMessages.mirrorLabel),
-      description: intl.formatMessage(intlMessages.mirrorDesc),
-      onClick: () => onHandleMirror(),
-      dataTest: 'mirrorWebcamBtn',
-    });
+    if (isStream) {
+      menuItems.push({
+        key: `${cameraId}-mirror`,
+        label: intl.formatMessage(intlMessages[`${isMirroredIntlKey}Label`]),
+        description: intl.formatMessage(intlMessages[`${isMirroredIntlKey}Desc`]),
+        onClick: () => onHandleMirror(cameraId),
+        dataTest: 'mirrorWebcamBtn',
+      });
+    }
 
-    if (numOfStreams > 2) {
+    if (numOfStreams > 2 && isStream) {
       menuItems.push({
         key: `${cameraId}-focus`,
         label: intl.formatMessage(intlMessages[`${isFocusedIntlKey}Label`]),
@@ -103,7 +161,7 @@ const UserActions = (props) => {
       });
     }
 
-    if (VideoService.isVideoPinEnabledForCurrentUser()) {
+    if (VideoService.isVideoPinEnabledForCurrentUser(amIModerator) && isStream) {
       menuItems.push({
         key: `${cameraId}-pin`,
         label: intl.formatMessage(intlMessages[`${isPinnedIntlKey}Label`]),
@@ -112,6 +170,27 @@ const UserActions = (props) => {
         dataTest: 'pinWebcamBtn',
       });
     }
+
+    userCameraDropdownItems.forEach((pluginItem) => {
+      switch (pluginItem.type) {
+        case UserCameraDropdownItemType.OPTION:
+          menuItems.push({
+            key: pluginItem.id,
+            label: pluginItem.label,
+            onClick: pluginItem.onClick,
+            icon: pluginItem.icon,
+          });
+          break;
+        case UserCameraDropdownItemType.SEPARATOR:
+          menuItems.push({
+            key: pluginItem.id,
+            isSeparator: true,
+          });
+          break;
+        default:
+          break;
+      }
+    });
 
     return menuItems;
   };
@@ -131,7 +210,7 @@ const UserActions = (props) => {
             size="sm"
             onClick={() => null}
           />
-          )}
+        )}
         actions={getAvailableActions()}
       />
     </Styled.MenuWrapperSqueezed>
@@ -146,6 +225,7 @@ const UserActions = (props) => {
               <Styled.DropdownTrigger
                 tabIndex={0}
                 data-test="dropdownWebcamButton"
+                isRTL={isRTL}
               >
                 {name}
               </Styled.DropdownTrigger>
@@ -156,7 +236,7 @@ const UserActions = (props) => {
               keepMounted: true,
               transitionDuration: 0,
               elevation: 3,
-              getContentAnchorEl: null,
+              getcontentanchorel: null,
               fullwidth: 'true',
               anchorOrigin: { vertical: 'bottom', horizontal: isRTL ? 'right' : 'left' },
               transformOrigin: { vertical: 'top', horizontal: isRTL ? 'right' : 'left' },
@@ -185,14 +265,15 @@ export default UserActions;
 UserActions.defaultProps = {
   focused: false,
   isVideoSqueezed: false,
-  videoContainer: () => {},
+  videoContainer: () => { },
+  onHandleVideoFocus: () => {},
 };
 
 UserActions.propTypes = {
   name: PropTypes.string.isRequired,
   cameraId: PropTypes.string.isRequired,
   numOfStreams: PropTypes.number.isRequired,
-  onHandleVideoFocus: PropTypes.func.isRequired,
+  onHandleVideoFocus: PropTypes.func,
   user: PropTypes.shape({
     pin: PropTypes.bool.isRequired,
     userId: PropTypes.string.isRequired,
@@ -204,4 +285,5 @@ UserActions.propTypes = {
     PropTypes.shape({ current: PropTypes.instanceOf(Element) }),
   ]),
   onHandleMirror: PropTypes.func.isRequired,
+  onHandleDisableCam: PropTypes.func.isRequired,
 };

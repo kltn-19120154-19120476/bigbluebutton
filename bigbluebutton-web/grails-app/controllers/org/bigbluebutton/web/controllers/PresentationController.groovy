@@ -101,13 +101,16 @@ class PresentationController {
   def upload = {
     log.debug("upload bruh lmfao")
     // check if the authorization token provided is valid
-    if (null == params.authzToken || !meetingService.authzTokenIsValidAndExpired(params.authzToken)) {
+    if (null == params.authzToken || !meetingService.authzTokenIsValid(params.authzToken)) {
       log.debug "WARNING! AuthzToken=" + params.authzToken + " was not valid in meetingId=" + params.conference
       response.addHeader("Cache-Control", "no-cache")
       response.contentType = 'plain/text'
       response.outputStream << 'invalid auth token'
       return
     }
+
+    PresentationUploadToken presUploadToken = meetingService.getPresentationUploadToken(params.authzToken)
+    meetingService.expirePresentationUploadToken(params.authzToken)
 
     def meetingId = params.conference
     if (Util.isMeetingIdValidFormat(meetingId)) {
@@ -152,7 +155,7 @@ class PresentationController {
     def presOrigFilename = ""
     def presFilename = ""
     def filenameExt = ""
-    def presId = ""
+    def presId = presUploadToken.presentationId
     def pres = null
     def temporaryPresentationId = params.temporaryPresentationId
 
@@ -175,7 +178,6 @@ class PresentationController {
       uploadFailed = true
     } else {
       String presentationDir = presentationService.getPresentationDir()
-      presId = Util.generatePresentationId(presFilename)
       File uploadDir = Util.createPresentationDir(meetingId, presentationDir, presId)
       if (uploadDir != null) {
         def newFilename = Util.createNewFilename(presId, filenameExt)
@@ -184,7 +186,7 @@ class PresentationController {
       }
     }
 
-    log.debug("processing file upload " + presFilename)
+    log.debug("processing file upload " + presFilename + " (presId: " + presId + ")")
     def presentationBaseUrl = presentationService.presentationBaseUrl
     def isPresentationMimeTypeValid = SupportedFileTypes.isPresentationMimeTypeValid(pres, filenameExt)
     UploadedPresentation uploadedPres = new UploadedPresentation(
@@ -342,6 +344,7 @@ class PresentationController {
     def presId = params.presId
     def presFilename = params.presFilename
     def meetingId = params.meetingId
+    def filename = params.filename
 
     log.debug "Controller: Download request for $presFilename"
 
@@ -352,7 +355,7 @@ class PresentationController {
         log.debug "Controller: Sending pdf reply for $presFilename"
 
         def bytes = pres.readBytes()
-        def responseName = pres.getName();
+        def responseName = filename;
         def mimeType = grailsMimeUtility.getMimeTypeForURI(responseName)
         def mimeName = mimeType != null ? mimeType.name : 'application/octet-stream'
 

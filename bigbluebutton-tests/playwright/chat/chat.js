@@ -1,5 +1,5 @@
 const { expect, default: test } = require('@playwright/test');
-const { openChat, openPrivateChat, checkLastMessageSent } = require('./util');
+const { openPublicChat, openPrivateChat, checkLastMessageSent } = require('./util');
 const p = require('../core/parameters');
 const e = require('../core/elements');
 const { checkTextContent } = require('../core/util');
@@ -14,10 +14,11 @@ class Chat extends MultiUsers {
   }
 
   async sendPublicMessage() {
-    await openChat(this.modPage);
+    await openPublicChat(this.modPage);
     await this.modPage.checkElementCount(e.chatUserMessageText, 0);
 
     await this.modPage.type(e.chatBox, e.message);
+    await this.userPage.hasElement(e.typingIndicator);
     await this.modPage.waitAndClick(e.sendButton);
     await this.modPage.checkElementCount(e.chatUserMessageText, 1);
   }
@@ -37,17 +38,18 @@ class Chat extends MultiUsers {
     await this.userPage.hasText(e.chatUserMessageText, e.message1);
     // userPage send message
     await this.userPage.type(e.chatBox, e.message2);
+    await this.modPage.hasElement(e.typingIndicator);
     await this.userPage.waitAndClick(e.sendButton);
     // check sent messages 
-    await this.modPage.hasText(e.privateChat, e.message2);
-    await this.userPage.hasText(e.privateChat, e.message2);
+    await this.modPage.hasText(`${e.chatUserMessageText}>>nth=1`, e.message2);
+    await this.userPage.hasText(`${e.chatUserMessageText}>>nth=1`, e.message2);
 
     await this.modPage.waitAndClick(e.chatButton);
     await this.userPage.waitAndClick(e.chatButton);
   }
 
   async clearChat() {
-    await openChat(this.modPage);
+    await openPublicChat(this.modPage);
 
     const userMessageTextCount = await this.modPage.getSelectorCount(e.chatUserMessageText);
 
@@ -61,16 +63,19 @@ class Chat extends MultiUsers {
     // clear
     await this.modPage.waitAndClick(e.chatOptions);
     await this.modPage.waitAndClick(e.chatClear);
-    const clearMessage = this.modPage.getLocator(e.chatClearMessageText);
-    await expect(clearMessage).toBeVisible();
-
+    await this.modPage.hasText(e.chatUserMessageText, 'The public chat history was cleared by a moderator');
   }
 
   async copyChat(context) {
     const { publicChatOptionsEnabled } = getSettings();
-    test.fail(!publicChatOptionsEnabled, 'Public chat options (save and copy) are disabled');
 
-    await openChat(this.modPage);
+    await openPublicChat(this.modPage);
+
+    if(!publicChatOptionsEnabled) {
+      await this.modPage.waitAndClick(e.chatOptions);
+      await this.modPage.hasElement(e.chatClear);
+      return this.modPage.wasRemoved(e.chatCopy);
+    }
     // sending a message
     await this.modPage.type(e.chatBox, e.message);
     await this.modPage.waitAndClick(e.sendButton);
@@ -87,9 +92,13 @@ class Chat extends MultiUsers {
 
   async saveChat(testInfo) {
     const { publicChatOptionsEnabled } = getSettings();
-    test.fail(!publicChatOptionsEnabled, 'Public chat options (save and copy) are disabled');
 
-    await openChat(this.modPage);
+    await openPublicChat(this.modPage);
+    if(!publicChatOptionsEnabled) {
+      await this.modPage.waitAndClick(e.chatOptions);
+      return this.modPage.wasRemoved(e.chatSave);
+    }
+
     await this.modPage.type(e.chatBox, e.message);
     await this.modPage.waitAndClick(e.sendButton);
     await this.modPage.waitForSelector(e.chatUserMessageText);
@@ -106,23 +115,24 @@ class Chat extends MultiUsers {
   }
 
   async characterLimit() {
-    await openChat(this.modPage);
+    await openPublicChat(this.modPage);
 
     const { maxMessageLength } = getSettings();
+    const initialMessagesCount = await this.modPage.getSelectorCount(e.chatUserMessageText);
     await this.modPage.page.fill(e.chatBox, e.uniqueCharacterMessage.repeat(maxMessageLength));
     await this.modPage.waitAndClick(e.sendButton);
     await this.modPage.waitForSelector(e.chatUserMessageText);
-    await this.modPage.checkElementCount(e.chatUserMessageText, 1);
+    await this.modPage.checkElementCount(e.chatUserMessageText, initialMessagesCount + 1);
 
-    await this.modPage.page.fill(e.chatBox, e.uniqueCharacterMessage.repeat(maxMessageLength + 1));
-    await this.modPage.waitForSelector(e.typingIndicator);
+    await this.modPage.page.fill(e.chatBox, e.uniqueCharacterMessage.repeat(maxMessageLength));
+    await this.modPage.type(e.chatBox, '123');  // it should has no effect
+    await this.modPage.waitForSelector(e.errorTypingIndicator);  // warning below input message saying it has exceeded the maximum of characters
     await this.modPage.waitAndClick(e.sendButton);
-    await this.modPage.waitForSelector(e.chatUserMessageText);
-    await this.modPage.checkElementCount(e.chatUserMessageText, 1);
+    await this.modPage.checkElementCount(e.chatUserMessageText, initialMessagesCount + 2);
   }
 
   async emptyMessage() {
-    await openChat(this.modPage);
+    await openPublicChat(this.modPage);
 
     const userMessageTextCount = await this.modPage.getSelectorCount(e.chatUserMessageText);
 
@@ -141,16 +151,21 @@ class Chat extends MultiUsers {
     await this.modPage.press('Control+KeyC');
     await this.modPage.getLocator(e.chatBox).focus();
     await this.modPage.press('Control+KeyV');
+    await this.modPage.type(e.chatBox, '2');
     await this.modPage.waitAndClick(e.sendButton);
 
-    await this.modPage.hasText(e.secondChatUserMessageText, /test/);
+    await checkLastMessageSent(this.modPage, /test2/);
   }
 
   async sendEmoji() {
     const { emojiPickerEnabled } = getSettings();
-    test.fail(!emojiPickerEnabled, 'Emoji Picker is disabled');
 
-    await openChat(this.modPage);
+    await openPublicChat(this.modPage);
+    if(!emojiPickerEnabled) {
+      await this.modPage.hasElement(e.chatBox);
+      return this.modPage.wasRemoved(e.emojiPickerButton);
+    }
+
     const message = this.modPage.getLocator(e.chatUserMessageText);
     await expect(message).toHaveCount(0);
 
@@ -164,9 +179,12 @@ class Chat extends MultiUsers {
 
   async emojiCopyChat(context) {
     const { emojiPickerEnabled } = getSettings();
-    test.fail(!emojiPickerEnabled, 'Emoji Picker is disabled');
 
-    await openChat(this);
+    await openPublicChat(this);
+    if(!emojiPickerEnabled) {
+      await this.modPage.hasElement(e.chatBox);
+      return this.modPage.wasRemoved(e.emojiPickerButton);
+    }
     await this.waitAndClick(e.emojiPickerButton);
     await this.waitAndClick(e.emojiSent);
     await this.waitAndClick(e.sendButton);
@@ -205,20 +223,23 @@ class Chat extends MultiUsers {
 
   async emojiSaveChat(testInfo) {
     const { emojiPickerEnabled } = getSettings();
-    test.fail(!emojiPickerEnabled, 'Emoji Picker is disabled');
 
-    await openChat(this);
-    await this.waitAndClick(e.emojiPickerButton);
-    await this.waitAndClick(e.emojiSent);
-    await this.waitAndClick(e.sendButton);
-    await this.waitForSelector(e.chatUserMessageText);
-    await this.waitAndClick(e.chatOptions);
-    const chatSaveLocator = this.getLocator(e.chatSave);
-    const { content } = await this.handleDownload(chatSaveLocator, testInfo);
+    await openPublicChat(this.modPage);
+    if(!emojiPickerEnabled) {
+      await this.modPage.hasElement(e.chatBox);
+      return this.modPage.wasRemoved(e.emojiPickerButton);
+    }
+    await this.modPage.waitAndClick(e.emojiPickerButton);
+    await this.modPage.waitAndClick(e.emojiSent);
+    await this.modPage.waitAndClick(e.sendButton);
+    await this.modPage.waitForSelector(e.chatUserMessageText);
+    await this.modPage.waitAndClick(e.chatOptions);
+    const chatSaveLocator = this.modPage.getLocator(e.chatSave);
+    const { content } = await this.modPage.handleDownload(chatSaveLocator, testInfo);
 
     const dataToCheck = [
-      this.meetingId,
-      this.username,
+      this.modPage.meetingId,
+      this.modPage.username,
       e.frequentlyUsedEmoji,
     ];
     await checkTextContent(content, dataToCheck);
@@ -226,12 +247,15 @@ class Chat extends MultiUsers {
 
   async emojiSendPrivateChat() {
     const { emojiPickerEnabled } = getSettings();
-    test.fail(!emojiPickerEnabled, 'Emoji Picker is disabled');
 
     await openPrivateChat(this.modPage);
     await this.modPage.waitForSelector(e.hidePrivateChat);
     await sleep(500); // prevent a race condition when running on a deployed server
     // modPage send message
+    if(!emojiPickerEnabled) {
+      await this.modPage.hasElement(e.chatBox);
+      return this.modPage.wasRemoved(e.emojiPickerButton);
+    }
     await this.modPage.waitAndClick(e.emojiPickerButton);
     await this.modPage.waitAndClick(e.emojiSent);
     await this.modPage.waitAndClick(e.sendButton);
@@ -254,32 +278,41 @@ class Chat extends MultiUsers {
 
   async autoConvertEmojiPublicChat() {
     const { autoConvertEmojiEnabled } = getSettings();
-    test.fail(!autoConvertEmojiEnabled, 'Auto Convert Emoji is disabled');
 
     try {
       await this.modPage.hasElement(e.hidePrivateChat);
       await this.modPage.waitAndClick(e.chatButton);
     } catch {
-      await this.modPage.hasElement(e.publicChat);
+      await this.modPage.hasElement(e.hidePublicChat);
     }
 
-    const message = await this.modPage.getSelectorCount(e.chatUserMessageText);
-    await this.modPage.checkElementCount(e.chatUserMessageText, message);
+    await this.modPage.waitAndClick(e.chatOptions);
+    await this.modPage.waitAndClick(e.chatClear);
+
+    await this.modPage.checkElementCount(e.chatUserMessageText, 1);
 
     await this.modPage.type(e.chatBox, e.autoConvertEmojiMessage);
     await this.modPage.waitAndClick(e.sendButton);
+
+    if(!autoConvertEmojiEnabled) {
+      await this.modPage.hasElement(e.chatBox);
+      return this.modPage.hasText(`${e.chatUserMessageText}>>nth=1`, ":)");
+    }
+
     await this.modPage.waitForSelector(e.chatUserMessageText);
-    await this.modPage.checkElementCount(e.chatUserMessageText, message + 1);
+    await this.modPage.checkElementCount(e.chatUserMessageText, 2);
   }
 
   async autoConvertEmojiCopyChat(context) {
     const { autoConvertEmojiEnabled } = getSettings();
-    test.fail(!autoConvertEmojiEnabled, 'Auto Convert Emoji is disabled');
 
-    await openChat(this);
+    await openPublicChat(this);
     await this.type(e.chatBox, e.autoConvertEmojiMessage);
     await this.waitAndClick(e.sendButton);
-
+    if(!autoConvertEmojiEnabled) {
+      await this.modPage.hasElement(e.chatBox);
+      return this.modPage.hasText(`${e.chatUserMessageText}>>nth=1`, ":)");
+    }
     await this.waitAndClick(e.chatOptions);
 
     await this.waitForSelector(e.chatUserMessageText);
@@ -292,11 +325,14 @@ class Chat extends MultiUsers {
 
   async autoConvertEmojiSaveChat(testInfo) {
     const { autoConvertEmojiEnabled } = getSettings();
-    test.fail(!autoConvertEmojiEnabled, 'Auto Convert Emoji is disabled');
 
-    await openChat(this.modPage);
+    await openPublicChat(this.modPage);
     await this.modPage.type(e.chatBox, e.autoConvertEmojiMessage);
     await this.modPage.waitAndClick(e.sendButton);
+    if(!autoConvertEmojiEnabled) {
+      await this.modPage.hasElement(e.chatBox);
+      return this.modPage.hasText(`${e.chatUserMessageText}>>nth=1`, ':)');
+    }
     await this.modPage.waitForSelector(e.chatUserMessageText);
     await this.modPage.waitAndClick(e.chatOptions);
     const chatSaveLocator = this.modPage.getLocator(e.chatSave);
@@ -311,8 +347,7 @@ class Chat extends MultiUsers {
   }
 
   async autoConvertEmojiSendPrivateChat() {
-    const { autoConvertEmojiEnabled } = getSettings();
-    test.fail(!autoConvertEmojiEnabled, 'Auto Convert Emoji is disabled');
+    const { autoConvertEmojiEnabled, emojiPickerEnabled } = getSettings();
 
     await openPrivateChat(this.modPage);
     await this.modPage.waitForSelector(e.hidePrivateChat);
@@ -320,8 +355,14 @@ class Chat extends MultiUsers {
     // modPage send message
     await this.modPage.type(e.chatBox, e.autoConvertEmojiMessage);
     await this.modPage.waitAndClick(e.sendButton);
+    if(!autoConvertEmojiEnabled && !emojiPickerEnabled) {
+      await this.modPage.hasElement(e.chatBox);
+      return this.modPage.hasText(`${e.chatUserMessageText}>>nth=0`, ":)");
+    } else if (!autoConvertEmojiEnabled) {
+      await this.modPage.hasElement(e.chatBox);
+      return this.modPage.hasText(`${e.chatUserMessageText}>>nth=2`, ":)");
+    }
     await this.userPage.waitUntilHaveCountSelector(e.chatButton, 2);
-    await openPrivateChat(this.userPage);
     await this.userPage.waitForSelector(e.hidePrivateChat);
     // check sent messages
     await checkLastMessageSent(this.modPage, e.convertedEmojiMessage)
@@ -330,8 +371,10 @@ class Chat extends MultiUsers {
     await this.userPage.type(e.chatBox, e.autoConvertEmojiMessage);
     await this.userPage.waitAndClick(e.sendButton);
     // check sent messages 
-    await this.modPage.hasText(e.privateChat, e.convertedEmojiMessage);
-    await this.userPage.hasText(e.privateChat, e.convertedEmojiMessage);
+    const lastMessageLocator = await this.modPage.getLocator(e.chatUserMessageText).last();
+    await expect(lastMessageLocator).toHaveText(e.convertedEmojiMessage);
+    const lastMessageLocatorUser = await this.userPage.getLocator(e.chatUserMessageText).last()
+    await expect(lastMessageLocatorUser).toHaveText(e.convertedEmojiMessage);
   }
 
   async chatDisabledUserLeaves() {
@@ -339,8 +382,8 @@ class Chat extends MultiUsers {
     await this.modPage.waitForSelector(e.sendButton);
     await this.userPage.waitAndClick(e.optionsButton);
     await this.userPage.waitAndClick(e.logout);
-    await this.modPage.hasElementDisabled(e.chatBox);
-    await this.modPage.hasElementDisabled(e.sendButton);
+    await this.modPage.hasElement(e.partnerDisconnectedMessage, ELEMENT_WAIT_LONGER_TIME);
+    await this.modPage.wasRemoved(e.sendButton);
   }  
 }
 

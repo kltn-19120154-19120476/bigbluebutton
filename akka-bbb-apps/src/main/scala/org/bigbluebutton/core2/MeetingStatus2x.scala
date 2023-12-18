@@ -1,7 +1,6 @@
 package org.bigbluebutton.core2
 
 import java.util.concurrent.TimeUnit
-
 import org.bigbluebutton.core.util.TimeUtil
 
 case class Permissions(
@@ -13,7 +12,8 @@ case class Permissions(
     hideUserList:           Boolean = false,
     lockOnJoin:             Boolean = true,
     lockOnJoinConfigurable: Boolean = false,
-    hideViewersCursor:      Boolean = false
+    hideViewersCursor:      Boolean = false,
+    hideViewersAnnotation:  Boolean = false
 )
 
 case class MeetingExtensionProp(maxExtensions: Int = 2, numExtensions: Int = 0, extendByMinutes: Int = 20,

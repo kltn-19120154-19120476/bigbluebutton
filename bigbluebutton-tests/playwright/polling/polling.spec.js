@@ -1,9 +1,12 @@
 const { test } = require('@playwright/test');
+const { fullyParallel } = require('../playwright.config');
 const { Polling } = require('./poll');
 
+if (!fullyParallel) test.describe.configure({ mode: 'serial' });
 
-test.describe.serial('Polling', () => {
+test.describe('Polling', () => {
   const polling = new Polling();
+
   test.beforeAll(async ({ browser }) => {
     const context = await browser.newContext();
     const page = await context.newPage();
@@ -20,11 +23,11 @@ test.describe.serial('Polling', () => {
     await polling.pollAnonymous();
   });
 
-  test('Create quick poll - from the slide @ci', async () => {
+  test('Create quick poll - from the slide @ci @flaky', async () => {
     await polling.quickPoll();
   });
 
-  test('Create poll with user response @ci', async () => {
+  test('Create poll with user response @ci @flaky', async () => {
     await polling.pollUserResponse();
   });
 
@@ -40,7 +43,7 @@ test.describe.serial('Polling', () => {
     await polling.notAbleStartNewPollWithoutPresentation();
   });
 
-  test('Custom input @ci', async () => {
+  test('Custom input @ci @flaky', async () => {
     await polling.customInput();
   });
 
@@ -57,7 +60,7 @@ test.describe.serial('Polling', () => {
     await polling.pollResultsOnChat();
   });
 
-  test('Poll results on whiteboard @ci', async () => {
+  test('Poll results on whiteboard @ci @flaky', async () => {
     await polling.pollResultsOnWhiteboard();
   });
 

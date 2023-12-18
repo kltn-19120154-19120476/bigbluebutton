@@ -1,8 +1,11 @@
 const { test } = require('@playwright/test');
+const { fullyParallel } = require('../playwright.config');
 const { linkIssue } = require('../core/helpers');
 const { Chat } = require('./chat');
 
-test.describe.serial('Chat', () => {
+if (!fullyParallel) test.describe.configure({ mode: 'serial' });
+
+test.describe('Chat', () => {
   const chat = new Chat();
   let context;
   test.beforeAll(async ({ browser }) => {
@@ -30,14 +33,14 @@ test.describe.serial('Chat', () => {
     await chat.copyChat(context);
   });
 
-  test('Save chat @ci', async ({ context }, testInfo) => {
+  test('Save chat @ci', async ({}, testInfo) => {
     await chat.saveChat(testInfo);
   });
-  
+
   test('Verify character limit', async () => {
     await chat.characterLimit();
   });
-  
+
   // https://docs.bigbluebutton.org/2.6/release-tests.html#sending-empty-chat-message-automated
   test('Not able to send an empty message @ci', async () => {
     await chat.emptyMessage();
@@ -61,8 +64,8 @@ test.describe.serial('Chat', () => {
     await chat.closePrivateChat();
   });
 
-  test('Save chat with emoji @ci', async () => {
-    await chat.emojiSaveChat();
+  test('Save chat with emoji @ci', async ({}, testInfo) => {
+    await chat.emojiSaveChat(testInfo);
   });
 
   test('Send emoji on private chat', async () => {

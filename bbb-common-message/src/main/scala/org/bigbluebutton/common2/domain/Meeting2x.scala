@@ -63,7 +63,8 @@ case class LockSettingsProps(
     hideUserList:           Boolean,
     lockOnJoin:             Boolean,
     lockOnJoinConfigurable: Boolean,
-    hideViewersCursor:      Boolean
+    hideViewersCursor:      Boolean,
+    hideViewersAnnotation:  Boolean
 )
 
 case class SystemProps(
@@ -88,7 +89,8 @@ case class DefaultProps(
     metadataProp:      MetadataProp,
     lockSettingsProps: LockSettingsProps,
     systemProps:       SystemProps,
-    groups:            Vector[GroupProps]
+    groups:            Vector[GroupProps],
+    overrideClientSettings: String
 )
 
 case class StartEndTimeStatus(startTime: Long, endTime: Long)

@@ -32,12 +32,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import com.google.gson.JsonObject;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.client.utils.URIBuilder;
-import org.bigbluebutton.api.domain.GuestPolicy;
-import org.bigbluebutton.api.domain.Meeting;
-import org.bigbluebutton.api.domain.Recording;
-import org.bigbluebutton.api.domain.RegisteredUser;
-import org.bigbluebutton.api.domain.User;
-import org.bigbluebutton.api.domain.UserSession;
+import org.bigbluebutton.api.domain.*;
 import org.bigbluebutton.api.messaging.MessageListener;
 import org.bigbluebutton.api.messaging.converters.messages.DestroyMeetingMessage;
 import org.bigbluebutton.api.messaging.converters.messages.EndMeetingMessage;
@@ -126,14 +121,20 @@ public class MeetingService implements MessageListener {
 
   public void registerUser(String meetingID, String internalUserId,
                            String fullname, String role, String externUserID,
-                           String authToken, String avatarURL, Boolean guest,
-                           Boolean authed, String guestStatus, Boolean excludeFromDashboard, Boolean leftGuestLobby) {
-    handle(new RegisterUser(meetingID, internalUserId, fullname, role,
-      externUserID, authToken, avatarURL, guest, authed, guestStatus, excludeFromDashboard, leftGuestLobby));
+                           String authToken, String sessionToken, String avatarURL, Boolean guest,
+                           Boolean authed, String guestStatus, Boolean excludeFromDashboard, Boolean leftGuestLobby,
+                           String enforceLayout, Map<String, String> customParameters) {
+    handle(
+            new RegisterUser(meetingID, internalUserId, fullname, role,
+                            externUserID, authToken, sessionToken, avatarURL, guest, authed, guestStatus,
+                            excludeFromDashboard, leftGuestLobby, enforceLayout, customParameters
+            )
+    );
 
     Meeting m = getMeeting(meetingID);
     if (m != null) {
-      RegisteredUser ruser = new RegisteredUser(authToken, internalUserId, guestStatus, excludeFromDashboard, leftGuestLobby);
+      RegisteredUser ruser = new RegisteredUser(authToken, internalUserId, guestStatus,
+                                                excludeFromDashboard, leftGuestLobby, enforceLayout);
       m.userRegistered(ruser);
     }
   }
@@ -412,7 +413,8 @@ public class MeetingService implements MessageListener {
             m.getMuteOnStart(), m.getAllowModsToUnmuteUsers(), m.getAllowModsToEjectCameras(), m.getMeetingKeepEvents(),
             m.breakoutRoomsParams, m.lockSettingsParams, m.getHtml5InstanceId(),
             m.getGroups(), m.getDisabledFeatures(), m.getNotifyRecordingIsOn(),
-            m.getPresentationUploadExternalDescription(), m.getPresentationUploadExternalUrl());
+            m.getPresentationUploadExternalDescription(), m.getPresentationUploadExternalUrl(),
+            m.getOverrideClientSettings());
   }
 
   private String formatPrettyDate(Long timestamp) {
@@ -426,8 +428,8 @@ public class MeetingService implements MessageListener {
   private void processRegisterUser(RegisterUser message) {
     gw.registerUser(message.meetingID,
       message.internalUserId, message.fullname, message.role,
-      message.externUserID, message.authToken, message.avatarURL, message.guest,
-            message.authed, message.guestStatus, message.excludeFromDashboard);
+      message.externUserID, message.authToken, message.sessionToken, message.avatarURL, message.guest,
+      message.authed, message.guestStatus, message.excludeFromDashboard, message.enforceLayout, message.customParameters);
   }
 
     public Meeting getMeeting(String meetingId) {
@@ -738,7 +740,7 @@ public class MeetingService implements MessageListener {
     uploadAuthzTokens.put(message.authzToken, message);
   }
 
-  private void expirePresentationUploadToken(String usedToken) {
+  public void expirePresentationUploadToken(String usedToken) {
     uploadAuthzTokens.remove(usedToken);
   }
 
@@ -769,12 +771,12 @@ public class MeetingService implements MessageListener {
 
         if (parentUser != null) {
           // Custom data is stored indexed by user's external id
-          Map<String, Object> customData = parentMeeting.getUserCustomData(parentUser.getExternalUserId());
+          Map<String, String> customData = parentMeeting.getUserCustomData(parentUser.getExternalUserId());
 
           if (customData != null) {
             for (String key : customData.keySet()) {
               if (!resp.containsKey(key)) {
-                resp.put(key, String.valueOf(customData.get(key)));
+                resp.put(key, customData.get(key));
               }
             }
           }
@@ -922,7 +924,7 @@ public class MeetingService implements MessageListener {
       }
 
       User user = new User(message.userId, message.externalUserId,
-        message.name, message.role, message.avatarURL, message.guest, message.guestStatus,
+        message.name, message.role, message.locked, message.avatarURL, message.guest, message.guestStatus,
               message.clientType);
 
       if(m.getMaxUsers() > 0 && m.countUniqueExtIds() >= m.getMaxUsers()) {
@@ -1042,7 +1044,7 @@ public class MeetingService implements MessageListener {
       } else {
         if (message.userId.startsWith("v_")) {
           // A dial-in user joined the meeting. Dial-in users by convention has userId that starts with "v_".
-                    User vuser = new User(message.userId, message.userId, message.name, "DIAL-IN-USER", "",
+                    User vuser = new User(message.userId, message.userId, message.name, "DIAL-IN-USER", true, "",
                             true, GuestPolicy.ALLOW, "DIAL-IN");
           vuser.setVoiceJoined(true);
           m.userJoined(vuser);
@@ -1122,6 +1124,21 @@ public class MeetingService implements MessageListener {
     log.warn("The meeting {} doesn't exist", message.meetingId);
   }
 
+  private void userLockedInMeeting(UserLockedInMeeting message) {
+    Meeting m = getMeeting(message.meetingId);
+    if (m != null) {
+      User user = m.getUserById(message.userId);
+      if (user != null) {
+        user.setLocked(message.locked);
+        log.debug("Setting locked flag in meeting {} for participant: {}", message.meetingId, user.getFullname());
+        return;
+      }
+      log.warn("The participant {} doesn't exist in the meeting {}", message.userId, message.meetingId);
+      return;
+    }
+    log.warn("The meeting {} doesn't exist", message.meetingId);
+  }
+
   private void processMessage(final IMessage message) {
     Runnable task = new Runnable() {
       public void run() {
@@ -1139,6 +1156,8 @@ public class MeetingService implements MessageListener {
           updatedStatus((UserStatusChanged) message);
         } else if (message instanceof UserRoleChanged) {
           userRoleChanged((UserRoleChanged) message);
+        } else if (message instanceof UserLockedInMeeting) {
+          userLockedInMeeting((UserLockedInMeeting) message);
         } else if (message instanceof UserJoinedVoice) {
           userJoinedVoice((UserJoinedVoice) message);
         } else if (message instanceof UserLeftVoice) {

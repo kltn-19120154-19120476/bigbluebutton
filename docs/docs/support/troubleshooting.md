@@ -131,7 +131,7 @@ Accepted values are:
    * The default and fallback values are `auto`.
 
 For example:
-   * To set the number of workers to `cores`: `yq w -i /etc/bigbluebutton/bbb-webrtc-sfu/production.yml mediasoup.workers "cores"`
+   * To set the number of workers to `cores`: `yq e -i '.mediasoup.workers = "cores"' /etc/bigbluebutton/bbb-webrtc-sfu/production.yml`
 
 #### mediasoup.dedicatedMediaTypeWorkers
 
@@ -154,7 +154,7 @@ The media types semantics are:
    * `content`: screen sharing streams (audio and video).
 
 For example:
-  * To set the number of dedicated audio workers to `auto`: `yq w -i /etc/bigbluebutton/bbb-webrtc-sfu/production.yml mediasoup.dedicatedMediaTypeWorkers.audio "auto"`
+  * To set the number of dedicated audio workers to `auto`: `yq e -i '.mediasoup.dedicatedMediaTypeWorkers.audio = "auto"' /etc/bigbluebutton/bbb-webrtc-sfu/production.yml`
 
 ### Can I scale the number of streams up indefinitely with mediasoup?
 
@@ -564,7 +564,7 @@ Then do `systemctl daemon-reload` and restart BigBlueButton.
 
 When installing the latest build of BigBlueButton, the package `bbb-conf` now uses `yq` to manage YAML files.
 
-You need to add the repository `ppa:rmescandon/yq` to your server. For steps on how to do this, see [Update your server](/administration/install#1-update-your-server) in the BigBlueButton 2.2 install guide.
+You need to add the repository `ppa:rmescandon/yq` to your server. For steps on how to do this, see `https://launchpad.net/~rmescandon/+archive/ubuntu/yq?field.series_filter=jammy`.
 
 Alternatively, if you have not made any customizations to BigBlueButton (outside of using `bbb-conf`), you can use [bbb-install.sh](https://github.com/bigbluebutton/bbb-install) to install/upgrade to the latest version (the `bbb-install.sh` script will automatically install the repository for `yq`).
 
@@ -782,28 +782,6 @@ During installation of BigBlueButton the packaging scripts attempt to assign the
 To reconfigure the BigBlueButton to use the correct IP address or hostname, see [BigBlueButton does not load](#bigbluebutton-does-not-load).
 
 ## bbb-web
-
-### 404 Error when loading the client
-
-BigBlueButton 2.2 requires Java 8 as the default Java. Recently, some Ubuntu 16.04 distributions have switched the default version of Java to Java 9 (or later).
-
-Use `java -version` to check that the default version of `1.8.0`.
-
-```bash
-~/dev$ java -version
-openjdk version "1.8.0_242"
-OpenJDK Runtime Environment (build 1.8.0_242-8u242-b08-0ubuntu3~16.04-b08)
-OpenJDK 64-Bit Server VM (build 25.242-b08, mixed mode)
-```
-
-If not, do the following
-
-```bash
-sudo apt-get install openjdk-8-jre
-update-alternatives --config java  # Choose java-8 as default
-```
-
-Run `java -version` and confirm it now shows the default as `1.8.0`, and then restart BigBlueButton with `sudo bbb-conf --restart`
 
 ### Blank presentation area on create or upload
 

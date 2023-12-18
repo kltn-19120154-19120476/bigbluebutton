@@ -21,6 +21,7 @@ package org.bigbluebutton.presentation;
 
 import java.io.File;
 import java.util.ArrayList;
+import org.apache.commons.io.FilenameUtils;
 
 public final class UploadedPresentation {
   private final String podId;
@@ -34,6 +35,7 @@ public final class UploadedPresentation {
   private String fileType = "unknown";
   private int numberOfPages = 0;
   private String conversionStatus;
+  private String filenameConverted;
   private final String baseUrl;
   private boolean isDownloadable = false;
   private boolean isRemovable = true;
@@ -42,7 +44,7 @@ public final class UploadedPresentation {
   private boolean conversionStarted = false;
   private boolean isExisted = false;
 
-  private boolean isInitialPresentation;
+  private boolean defaultPresentation;
 
   public UploadedPresentation(String podId,
                               String meetingId,
@@ -54,7 +56,7 @@ public final class UploadedPresentation {
                               String authzToken,
                               Boolean uploadFailed,
                               ArrayList<String> uploadFailReason,
-                              Boolean isInitialPresentation) {
+                              Boolean defaultPresentation) {
     this.podId = podId;
     this.meetingId = meetingId;
     this.id = id;
@@ -67,6 +69,7 @@ public final class UploadedPresentation {
     this.uploadFailed = uploadFailed;
     this.uploadFailReason = uploadFailReason;
     this.isInitialPresentation = isInitialPresentation;
+    this.defaultPresentation = defaultPresentation;
     this.isExisted = false;
   }
 
@@ -106,9 +109,9 @@ public final class UploadedPresentation {
                               String authzToken,
                               Boolean uploadFailed,
                               ArrayList<String> uploadFailReason,
-                              Boolean isInitialPresentation) {
+                              Boolean defaultPresentation) {
     this(podId, meetingId, id, "", name, baseUrl,
-            current, authzToken, uploadFailed, uploadFailReason, isInitialPresentation);
+            current, authzToken, uploadFailed, uploadFailReason, defaultPresentation);
   }
 
   public File getUploadedFile() {
@@ -209,6 +212,28 @@ public final class UploadedPresentation {
 
   public ArrayList<String> getUploadFailReason() {
     return uploadFailReason;
+  }
+
+  public boolean isDefaultPresentation() {
+    return defaultPresentation;
+  }
+
+  public String getFilenameConverted() {
+    if (filenameConverted != null) {
+      return filenameConverted;
+    } else {
+      return "";
+    }
+  }
+
+  public void generateFilenameConverted(String newExtension) {
+    String nameWithoutExtension = FilenameUtils.removeExtension(name);
+    this.filenameConverted = nameWithoutExtension.concat("." + newExtension);
+  }
+
+
+  public boolean isInitialPresentation() {
+    return isInitialPresentation;
   }
 
   public boolean getIsInitialPresentation() {

@@ -233,6 +233,41 @@ case class DeletedRecordingSysMsg(header: BbbCoreBaseHeader, body: DeletedRecord
 case class DeletedRecordingSysMsgBody(recordId: String)
 
 /**
+ * Sent from akka-apps to graphql-middleware
+ */
+object InvalidateUserGraphqlConnectionSysMsg { val NAME = "InvalidateUserGraphqlConnectionSysMsg" }
+case class InvalidateUserGraphqlConnectionSysMsg(
+    header: BbbCoreHeaderWithMeetingId,
+    body:   InvalidateUserGraphqlConnectionSysMsgBody
+) extends BbbCoreMsg
+case class InvalidateUserGraphqlConnectionSysMsgBody(meetingId: String, userId: String, sessionToken: String, reason: String)
+
+/**
+ * Sent from graphql-middleware to akka-apps
+ */
+
+object UserGraphqlConnectionInvalidatedEvtMsg { val NAME = "UserGraphqlConnectionInvalidatedEvtMsg" }
+case class UserGraphqlConnectionInvalidatedEvtMsg(
+    header: BbbCoreBaseHeader,
+    body:   UserGraphqlConnectionInvalidatedEvtMsgBody
+) extends BbbCoreMsg
+case class UserGraphqlConnectionInvalidatedEvtMsgBody(sessionToken: String, browserConnectionId: String)
+
+object UserGraphqlConnectionStablishedSysMsg { val NAME = "UserGraphqlConnectionStablishedSysMsg" }
+case class UserGraphqlConnectionStablishedSysMsg(
+    header: BbbCoreBaseHeader,
+    body:   UserGraphqlConnectionStablishedSysMsgBody
+) extends BbbCoreMsg
+case class UserGraphqlConnectionStablishedSysMsgBody(sessionToken: String, browserConnectionId: String)
+
+object UserGraphqlConnectionClosedSysMsg { val NAME = "UserGraphqlConnectionClosedSysMsg" }
+case class UserGraphqlConnectionClosedSysMsg(
+    header: BbbCoreBaseHeader,
+    body:   UserGraphqlConnectionClosedSysMsgBody
+) extends BbbCoreMsg
+case class UserGraphqlConnectionClosedSysMsgBody(sessionToken: String, browserConnectionId: String)
+
+/**
  * Sent from akka-apps to bbb-web to inform a summary of the meeting activities
  */
 object LearningDashboardEvtMsg { val NAME = "LearningDashboardEvtMsg" }

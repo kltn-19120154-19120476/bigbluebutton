@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import Resizable from 're-resizable';
 import { ACTIONS, PANELS } from '../layout/enums';
-import ChatContainer from '/imports/ui/components/chat/container';
+import ChatContainer from '/imports/ui/components/chat/chat-graphql/component';
 import NotesContainer from '/imports/ui/components/notes/container';
 import PollContainer from '/imports/ui/components/poll/container';
 import CaptionsContainer from '/imports/ui/components/captions/container';
 import BreakoutRoomContainer from '/imports/ui/components/breakout-room/container';
+import TimerContainer from '/imports/ui/components/timer/container';
 import WaitingUsersPanel from '/imports/ui/components/waiting-users/container';
 import Styled from './styles';
 import ErrorBoundary from '/imports/ui/components/common/error-boundary/component';
@@ -49,6 +50,8 @@ const SidebarContent = (props) => {
     sidebarContentPanel,
     amIPresenter,
     isSharedNotesPinned,
+    currentSlideId,
+    amIModerator,
   } = props;
 
   const [resizableWidth, setResizableWidth] = useState(width);
@@ -63,9 +66,6 @@ const SidebarContent = (props) => {
       setResizableHeight(height);
     }
   }, [width, height]);
-
-  useEffect(() => {
-  }, [resizeStartWidth, resizeStartHeight]);
 
   const setSidebarContentSize = (dWidth, dHeight) => {
     const newWidth = resizeStartWidth + dWidth;
@@ -131,24 +131,32 @@ const SidebarContent = (props) => {
       }}
     >
       {sidebarContentPanel === PANELS.CHAT
-      && (
-      <ErrorBoundary
-        Fallback={FallbackView}
-      >
-        <ChatContainer width={width} />
-      </ErrorBoundary>
-      )}
+        && (
+          <ErrorBoundary
+            Fallback={FallbackView}
+          >
+            <ChatContainer width={width} />
+          </ErrorBoundary>
+        )}
       {!isSharedNotesPinned && (
         <NotesContainer
           isToSharedNotesBeShow={sidebarContentPanel === PANELS.SHARED_NOTES}
         />
       )}
-      {sidebarContentPanel === PANELS.CAPTIONS && <CaptionsContainer />}
+      {sidebarContentPanel === PANELS.CAPTIONS && <CaptionsContainer amIModerator={amIModerator} />}
       {sidebarContentPanel === PANELS.BREAKOUT && <BreakoutRoomContainer />}
+      {sidebarContentPanel === PANELS.TIMER && <TimerContainer />}
       {sidebarContentPanel === PANELS.WAITING_USERS && <WaitingUsersPanel />}
       {sidebarContentPanel === PANELS.POLL && (
-        <Styled.Poll style={{ minWidth, top: '0', display: pollDisplay }} id="pollPanel">
-          <PollContainer smallSidebar={smallSidebar} amIPresenter={amIPresenter} />
+        <Styled.Poll
+          style={{ minWidth, top: '0', display: pollDisplay }}
+          id="pollPanel"
+        >
+          <PollContainer
+            smallSidebar={smallSidebar}
+            amIPresenter={amIPresenter}
+            currentSlideId={currentSlideId}
+          />
         </Styled.Poll>
       )}
     </Resizable>
